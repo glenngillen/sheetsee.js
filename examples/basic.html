@@ -1,0 +1,128 @@
+<html>
+  <head>
+    <script type="text/javascript" src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
+    <script type="text/javascript" src="../modernizr.custom.33965.js"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/d3/3.0.1/d3.v3.min.js"></script>
+    <script type="text/javascript" src="../sheetsee.js"></script>
+    <script type="text/javascript" src="../tabletop.js"></script>
+    <script type="text/javascript" src="../ICanHaz.js"></script>
+    <script type="text/javascript" src="../accounting.js" ></script>
+  </head>
+  <body>
+    <body>
+      <div id="maincontainer" class="overview" >
+        <h3>Sheetsee.js Example</h3>
+        <div class="articleHolder">
+          <h3>Location & Quick Stats</h3>
+          <div id="stats" ></div><!-- holds spot for stats -->
+          <div id="map" class="fullmap"></div><!-- holds spot for map -->
+          <div class="clear"></div>
+        </div><!-- end holder -->
+        <div class="articleHolder">
+          <h3>Category Funding Comparison</h3>
+          <p>Below, a funds comparison between the Foucs Areas in Economic Development.</p>
+          <div id="holder"></div><!-- holds spot for bar chart -->
+        </div><!-- end holder -->
+        <div class="articleHolder">
+          <h3>Funding Schedule</h3>
+          <p>The projected dispersal of funds for Centreplex.</p>
+          <div id="table"></div><!-- holds spot for funding schedule -->
+        </div><!-- end holder -->
+        <div class="articleHolder">
+          <div id="monthly"><!-- holds spot for monthly expenditures - only if focus area has any -->
+            <h3>Monthly Expenditure Report</h3>
+            <p>Nothing yet to report in Centreplex.</p>
+          </div>
+        </div><!-- end holder -->
+      </div><!-- end #maincontainer -->
+      <!-- commence setting up the charts for mustache.js -->
+      <script id="monthly" type="text/html">// format the project expenditure table
+        <h3>Monthly Expenditure Report</h3>
+        <p>Each month we publish a report on our expenses and tax/bond revenue with active projects.
+          If this project is active, the chart below will be populated with expenses related to Centreplex.</p>
+        <h6 class="fleft">Monthly Report for:</h6>
+        <p><span class="statHighlight">  {{reportmonth}} / {{reportyear}}</span></p>
+
+        <table class="monthlytable">
+        <thead>
+        <tr class="tableheader">
+        <th>FOCUS AREA</th><th>PROJECT</th><th>BUDGET</th><th>ACTUAL</th><th>STATUS</th>
+        </tr>
+        </thead>
+        {{#rows}}
+          <tr>
+          <td>{{focusarea}}</td><td >{{project}}</td><td class="yrdolls">{{budget}}</td><td class="yrdolls total">{{ptdactual}}</td><td 						class-"tright">{{status}}</td></tr>
+        {{/rows}}
+        </table>
+      </script>
+      <script id="stats" type="text/html">// format stats
+       <h5>Centreplex has <span class="statHighlight">{{numberItemizedProjects}}</span> projects, <span class="statHighlight">{{numberInProgress}}</span> of which labeled in progress and <span class="statHighlight">{{completeProjects}}</span> are complete.</h5>
+      </script>
+      <script id="schedule" type="text/html">// format funding dispersal schedule
+        <table>
+        <thead>
+        <tr class="tableheader">
+        <th>FOCUS AREA</th><th>TOTAL</th><th>2012</th><th>2013</th><th>2014</th><th>2015</th><th>2016</th><th>2017</th><th>2018</th><th>2019</th>
+        </tr>
+        </thead>
+        {{#rows}}
+          <tr><td class = "project">{{focusarea}}</td><td class="total">{{total}}</td><td class="yrdolls">{{year2012}}</td><td class="yrdolls">{{year2013}}</td><td class="yrdolls">{{year2014}}</td><td class="yrdolls">{{year2015}}</td><td class="yrdolls">{{year2016}}</td><td class="yrdolls">{{year2017}}</td><td class="yrdolls">{{year2018}}</td><td class="yrdolls">{{year2019}}</td></tr>
+        {{/rows}}
+        </table>
+      </script>
+      <script type="text/javascript"> // make all the good stuff!
+        document.addEventListener('DOMContentLoaded', function() { // IE6 doesn't do DOMContentLoaded
+           loadSpreadsheet(showInfo)
+         })
+         function showInfo(data, tabletop) {
+           window.tabletopData = tabletop
+           accounting.settings.currency.precision = 0
+           var pageParent = "Economic Development" // get Parent Page name which is Category
+           var pageName = "Centreplex" // get Page name which is Focus Area
+           var thePageParent = getType(data, pageParent) // Filter to array of Category
+           var thePageName  = getProject(data, pageName) // Filte to object of Focus Area
+           var noProjsInCat = thePageParent.length
+           // if user's browswer doesn't support SVG, tell them
+           if (Modernizr.svg) renderGraph(thePageParent, noProjsInCat, "#holder")
+             else sorrySVG("#holder")
+           function sorrySVG(divTown) {
+             $(divTown).text("Sorry, to see the chart you'll need to update your browser. <a href='https://www.google.com/intl/en/chrome/browser/'>Google Chrome</a> is great.")
+           }
+           // These define the tables
+           // -- quick stats table
+           var itemizedArea = getActualsArea(tabletop.sheets("actuals").all(), pageName)
+           var completeProjects = getStatusCount(itemizedArea, "Complete")
+           var inProgress = getInProgress(itemizedArea)
+           var sumInProgress = inProgressSpent(itemizedArea)
+
+           var stats = ich.stats({
+             numberItemizedProjects: itemizedArea.length,
+             numberInProgress: inProgress.length,
+             sumInProgress: accounting.formatMoney(sumInProgress),
+             currentDate: getCurrentYear(),
+             completeProjects: completeProjects
+           })
+
+           // -- schedule table
+           var schedule = ich.schedule({
+             rows: turnCurrency(thePageName)
+           })
+
+           // -- monthly expense table
+           var monthlyrev = getActualsArea(tabletop.sheets("actuals").all(), pageName)
+           var reportmonth = getCurrentMonth() - 1
+           var reportyear = getCurrentYear()
+           var monthly = ich.monthly({
+             rows: turnReportCurrency(monthlyrev),
+             reportyear: reportyear,
+             reportmonth: reportmonth
+           })
+
+           // write these objects to the page
+           $('#stats').html(stats)
+           $('#table').html(schedule)
+           if (monthlyrev.length > 0) $('#monthly').html(monthly)
+         }
+      </script>
+  </body>
+</html>
